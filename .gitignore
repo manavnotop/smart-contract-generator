@@ -11,3 +11,4 @@ wheels/
 .env
 contracts/
 logs/
+test_debugger.py

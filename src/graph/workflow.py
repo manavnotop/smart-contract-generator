@@ -68,8 +68,8 @@ def create_workflow(test_mode: bool = False) -> StateGraph:
         },
     )
 
-    # Edge from debugger - after one retry, go back to validator
-    workflow.add_edge("debugger", "static_validator")
+    # Edge from debugger - after fix, go directly to build (skip static validation)
+    workflow.add_edge("debugger", "build_contract")
 
     return workflow
 
@@ -318,6 +318,7 @@ async def build_node(state: GraphState) -> GraphState:
             state.on_event(f"build:{'success' if success else 'failed'}")
 
         merged = _safe_merge(state, {})
+        merged.pop("build_logs", None)  # Remove build_logs to avoid duplicate keyword arg
         return GraphState(
             **merged,
             user_spec=state.user_spec,
@@ -335,7 +336,57 @@ async def build_node(state: GraphState) -> GraphState:
 
 
 async def debugger_node(state: GraphState) -> GraphState:
-    return await _run_agent_node(state, Debugger, "Debugger")
+    """Run debugger agent with detailed logging."""
+    if state.on_event:
+        state.on_event("agent:Debugger:start")
+
+    logger.info("[Debugger] Starting...")
+
+    try:
+        agent = Debugger()
+        result_state = await agent.run(state.model_dump())
+
+        # Write patched files to disk
+        files = result_state.get("files", {})
+        if files:
+            file_ops = FileOps(Path(state.project_root))
+            file_ops.write_files(files)
+            logger.info(f"[Debugger] Wrote {len(files)} patched files to disk")
+
+        # Log debugger activity
+        if result_state.get("error_message"):
+            logger.warning(f"[Debugger] Failed: {result_state['error_message']}")
+        else:
+            files = result_state.get("files", {})
+            changed_files = set(files.keys())
+            patches_count = result_state.get("debugger_patches_count", len(changed_files))
+            logger.info(f"[Debugger] Applied {patches_count} patches to fix issues")
+
+            # Log analysis
+            analysis = result_state.get("debugger_analysis", "")
+            if analysis and analysis != "No analysis provided":
+                logger.info(f"[Debugger] Analysis: {analysis[:200]}...")
+
+            # Log what was fixed
+            logger.info(f"[Debugger] Files modified: {list(changed_files)}")
+
+        if state.on_event:
+            state.on_event("agent:Debugger:end")
+
+        merged = _safe_merge(state, result_state)
+        return GraphState(
+            **merged,
+            user_spec=state.user_spec,
+            retry_count=state.retry_count + 1,
+            project_root=state.project_root,
+            on_event=state.on_event,
+            test_mode=state.test_mode,
+        )
+    except Exception as e:
+        logger.error(f"[Debugger] FAILED: {e}")
+        if state.on_event:
+            state.on_event("agent:Debugger:failed")
+        raise
 
 
 async def abort_node(state: GraphState) -> GraphState:

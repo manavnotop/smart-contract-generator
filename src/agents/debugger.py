@@ -29,7 +29,7 @@ Guidelines:
 - Add missing imports/dependencies
 - Fix syntax errors, type mismatches, etc.
 
-If you cannot fix the errors, explain why clearly.
+The file contents are provided in the prompt below - review them carefully to understand the current code before generating fixes.
 """
 
 
@@ -41,7 +41,7 @@ class Debugger(BaseAgent):
         return "debugger"
 
     def _get_tools(self):
-        """No file tools - agent returns patches in state."""
+        """No tools needed - file contents are passed in the state."""
         return []
 
     def _get_system_prompt(self):
@@ -62,21 +62,28 @@ class Debugger(BaseAgent):
             error_info = "Unknown error - no error information available"
 
         files = state.get("files", {})
-        files_summary = "\n".join(f"- {path}" for path in files)
+
+        # Include file contents so the agent can see the code
+        files_content = ""
+        for path, content in files.items():
+            files_content += f"\n=== {path} ===\n{content}"
 
         return f"""Analyze and fix these errors:
 
 {error_info}
 
-Current project files:
-{files_summary}
+Current project files with contents:
+{files_content}
 
-Return patches to fix the issues as a JSON object."""
+Use the file reading tools to examine the code if needed. Return patches to fix the issues as a JSON object."""
 
     def _format_agent_result(self, state: dict, result: dict) -> dict:
         """Extract patches and return them in state."""
         output = self._extract_output_from_result(result)
         data = self._extract_json_from_output(output)
+
+        # Extract analysis for logging
+        analysis = data.get("analysis", "No analysis provided")
 
         # Try 'patches' key first, then fallback to general file map
         patches = data.get("patches", [])
@@ -94,12 +101,15 @@ Return patches to fix the issues as a JSON object."""
             return {
                 **state,
                 "files": updated_files,
+                "debugger_analysis": analysis,
+                "debugger_patches_count": len(patches),
                 "error_message": None,
                 "current_step": "static_validator",
             }
 
         return {
             **state,
+            "debugger_analysis": analysis,
             "current_step": "abort",
             "error_message": f"Debugger failed: {output}",
         }

@@ -6,7 +6,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 # Constants
-MAX_RETRIES = 1
+MAX_RETRIES = 2
 
 
 class ContractFeature(str, Enum):
@@ -22,17 +22,41 @@ class ContractFeature(str, Enum):
     OWNABLE = "ownable"
     ACCESS_CONTROL = "access_control"
     INITIAL_SUPPLY = "initial_supply"
+    # Generic program features
+    COUNTER = "counter"
+    VAULT = "vault"
+    ESCROW = "escrow"
+    STAKING = "staking"
+    SWAP = "swap"
 
 
 class TokenSpec(BaseModel):
-    """Specification for a token contract."""
+    """Specification for a Solana smart contract (token, counter, escrow, etc.)."""
 
-    name: str = Field(..., description="Full name of the token")
-    symbol: str = Field(..., description="Token symbol (3-6 chars)")
-    description: str | None = Field(default=None, description="Token description")
-    decimals: int = Field(default=9, ge=0, le=9, description="Decimal places")
-    features: list[ContractFeature] = Field(default_factory=list, description="List of features")
-    initial_supply: int | None = Field(default=None, ge=0)
+    name: str = Field(..., description="Name of the contract/program")
+    symbol: str | None = Field(default=None, description="Token symbol (for token contracts)")
+    description: str | None = Field(default=None, description="Contract description")
+    decimals: int | None = Field(
+        default=None, ge=0, le=9, description="Decimal places (for token contracts)"
+    )
+    features: list[str] = Field(default_factory=list, description="List of features/capabilities")
+    initial_supply: int | None = Field(
+        default=None, ge=0, description="Initial supply (for token contracts)"
+    )
+
+    # Dynamic fields for any contract type
+    instructions: list[str] = Field(
+        default_factory=list,
+        description="List of instruction handlers (e.g., 'initialize', 'increment', 'transfer')",
+    )
+    accounts: list[str] = Field(
+        default_factory=list,
+        description="List of account types needed (e.g., 'counter', 'user', 'mint')",
+    )
+    data_structs: list[dict] = Field(
+        default_factory=list,
+        description="Custom data structures as list of {'name': ..., 'fields': [...]}",
+    )
 
     class Config:
         use_enum_values = True
