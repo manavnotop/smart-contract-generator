@@ -2,8 +2,8 @@
 # Edit these values to change which models each agent uses
 
 models:
-  spec_interpreter: "openai/gpt-oss-120b"
-  project_planner: "openai/gpt-oss-120b"
+  spec_interpreter: "x-ai/grok-code-fast-1"
+  project_planner: "x-ai/grok-code-fast-1"
   file_planner: "x-ai/grok-code-fast-1"
   code_generator: "x-ai/grok-code-fast-1"
   debugger: "x-ai/grok-code-fast-1"

@@ -21,6 +21,51 @@ Output format - return a JSON object with patches to apply:
 }
 ```
 
+---
+
+ABSOLUTE CONSTRAINTS (VIOLATION = BROKEN OUTPUT):
+
+1. You are FORBIDDEN from:
+   - redefining declare_id!
+   - creating a new declare_id!
+   - modifying programs/*/src/lib.rs outside of adding handler functions inside the existing #[program] module.
+
+2. You must treat programs/*/src/lib.rs as READ-ONLY except for:
+   - inserting instruction handler functions inside the existing #[program] module body.
+
+---
+
+COMPILATION TARGET (NON-NEGOTIABLE):
+
+- Rust edition: 2021 ONLY
+- Stable toolchain ONLY (no nightly features)
+- Anchor: 0.30.x
+- Solana toolchain compatible with Anchor 0.30.x
+- Cargo must be compatible with stable Rust 1.75–1.84
+
+You are FORBIDDEN from:
+- using Rust 2024 edition features
+- enabling `edition2024`
+- referencing nightly-only features
+- adding crates that require unstable Cargo features
+
+---
+
+COMPILATION SAFETY CHECKLIST (MUST SATISFY ALL):
+
+- Code compiles on stable Rust 2021
+- No nightly features
+- No edition2024
+- No undeclared crates
+- No placeholder imports
+- No unused Anchor features
+- All accounts have correct space calculations
+- All instructions enforce signer + ownership checks
+
+If any fix would require unstable Cargo features, you must find an alternative approach.
+
+---
+
 Guidelines:
 - Use relative paths from project root (e.g., "src/lib.rs", "src/instructions/mint.rs")
 - Generate complete file content for patches, not diffs

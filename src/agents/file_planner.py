@@ -21,14 +21,14 @@ Rules:
 1. Files with NO dependencies on each other can be parallelized
 2. accounts.rs must come BEFORE instruction handlers that use those accounts
 3. errors.rs can be generated in parallel with accounts.rs (independent)
-4. lib.rs should come after accounts.rs and errors.rs (may reference them)
-5. Instruction handlers (in instructions/) depend on accounts.rs and errors.rs
-6. Test files can be generated last (they depend on everything else)
-7. Keep batches balanced (2-5 files per batch ideal)
-8. Always include: accounts.rs, errors.rs (if needed), lib.rs, instruction handlers
+4. Instruction handlers (in instructions/) depend on accounts.rs and errors.rs
+5. Test files can be generated last (they depend on everything else)
+6. Keep batches balanced (2-5 files per batch ideal)
+7. Always include: accounts.rs, errors.rs (if needed), instruction handlers
+8. NEVER include lib.rs - it already exists from anchor init with correct declare_id!
 
 File structure for Anchor projects:
-- programs/{project}/src/lib.rs - Main module with #[program], ALREADY HAS correct declare_id! from anchor init (DO NOT include in lib.rs batch - code_generator only adds handlers inside #[program])
+- programs/{project}/src/lib.rs - Main module with #[program], ALREADY HAS correct declare_id! from anchor init (DO NOT include in batches - code_generator only adds handlers inside #[program] module, never rewrites the file)
 - programs/{project}/src/accounts.rs - Account struct definitions
 - programs/{project}/src/errors.rs - Custom error types
 - programs/{project}/src/instructions/mod.rs - Module declarations
@@ -46,14 +46,12 @@ Example output:
      "description": "Account struct definitions", "dependencies": [], "priority": 1},
     {"batch_id": "errors", "file_paths": ["programs/{project}/src/errors.rs"],
      "description": "Custom error types", "dependencies": [], "priority": 1},
-    {"batch_id": "lib", "file_paths": ["programs/{project}/src/lib.rs"],
-     "description": "Main program module", "dependencies": ["accounts", "errors"], "priority": 2},
     {"batch_id": "instructions", "file_paths": ["programs/{project}/src/instructions/mod.rs",
      "programs/{project}/src/instructions/initialize.rs", "programs/{project}/src/instructions/transfer.rs"],
-     "description": "Instruction handlers", "dependencies": ["lib"], "priority": 3}
+     "description": "Instruction handlers", "dependencies": ["accounts", "errors"], "priority": 2}
   ],
-  "total_files": 6,
-  "generation_order": [["accounts", "errors"], ["lib"], ["instructions"]]
+  "total_files": 5,
+  "generation_order": [["accounts", "errors"], ["instructions"]]
 }
 
 Return ONLY valid JSON. No markdown formatting, no explanations.
@@ -90,7 +88,8 @@ class FilePlanner(LLMOnlyAgent):
         if accounts:
             needed_files.append("programs/{project}/src/accounts.rs")
         needed_files.append("programs/{project}/src/errors.rs")
-        needed_files.append("programs/{project}/src/lib.rs")
+        # lib.rs is NOT included - it already exists from anchor init with correct declare_id!
+        # Only code_generator adds instruction handlers INSIDE the #[program] module
         needed_files.append("programs/{project}/src/instructions/mod.rs")
 
         for instr in instructions:
@@ -120,17 +119,26 @@ Return valid JSON only."""
         """Format the structured GenerationPlan response."""
         # DEBUG: Log response type and content
         import sys
+
         print(f"[FilePlanner DEBUG] Response type: {type(response)}", file=sys.stderr)
         if hasattr(response, "content"):
-            content = response.content if isinstance(response.content, str) else str(response.content)
+            content = (
+                response.content if isinstance(response.content, str) else str(response.content)
+            )
             print(f"[FilePlanner DEBUG] Raw content: {content[:500]}", file=sys.stderr)
-        print(f"[FilePlanner DEBUG] Has model_dump: {hasattr(response, 'model_dump')}", file=sys.stderr)
+        print(
+            f"[FilePlanner DEBUG] Has model_dump: {hasattr(response, 'model_dump')}",
+            file=sys.stderr,
+        )
 
         # Handle Pydantic model response from with_structured_output
         if hasattr(response, "model_dump"):
             # Structured output - response is a Pydantic model (GenerationPlan)
             generation_plan = response
-            print(f"[FilePlanner DEBUG] Parsed generation_plan: {generation_plan.model_dump()}", file=sys.stderr)
+            print(
+                f"[FilePlanner DEBUG] Parsed generation_plan: {generation_plan.model_dump()}",
+                file=sys.stderr,
+            )
             return {
                 **state,
                 "generation_plan": generation_plan,

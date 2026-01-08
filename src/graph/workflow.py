@@ -43,17 +43,17 @@ def _preserve_declare_id(project_root: Path, new_content: str) -> str:
     try:
         existing_content = lib_path.read_text()
         # Find the declare_id line
-        for line in existing_content.split('\n'):
-            if line.strip().startswith('declare_id!'):
+        for line in existing_content.split("\n"):
+            if line.strip().startswith("declare_id!"):
                 # Replace declare_id in new content with existing one
-                lines = new_content.split('\n')
+                lines = new_content.split("\n")
                 new_lines = []
                 for l in lines:
-                    if l.strip().startswith('declare_id!'):
+                    if l.strip().startswith("declare_id!"):
                         new_lines.append(line)
                     else:
                         new_lines.append(l)
-                return '\n'.join(new_lines)
+                return "\n".join(new_lines)
     except Exception:
         pass
 
@@ -313,6 +313,7 @@ async def file_planner_node(state: GraphState) -> GraphState:
 
         # Get the generation plan (may be a Pydantic model or dict)
         import sys
+
         plan_dict = result_state.get("generation_plan")
         print(f"[FilePlanner DEBUG] plan_dict type: {type(plan_dict)}", file=sys.stderr)
 
@@ -476,7 +477,9 @@ async def batch_processor_node(state: GraphState) -> GraphState:
         # Get generated files - filter to only include files from current batch
         all_new_files = result_state.get("files", {})
         batch_files = batch_to_process.get("file_paths", [])
-        new_files = {path: content for path, content in all_new_files.items() if path in batch_files}
+        new_files = {
+            path: content for path, content in all_new_files.items() if path in batch_files
+        }
 
         # Write files to disk and emit events
         if new_files and state.project_root:

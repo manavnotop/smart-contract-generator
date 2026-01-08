@@ -4,7 +4,6 @@ from src.agents.base import LLMOnlyAgent
 from src.schemas.models import ProjectFiles
 
 SYSTEM_PROMPT = """You are an expert Solana smart contract Rust developer specializing in
-
 Anchor 0.30.x. The Anchor project is already initialized. Your task is to write
 complete, production-ready Rust code for ANY Solana program based on the specification.
 
@@ -12,16 +11,100 @@ Output a JSON object with a "files" array. Each file has:
 - path: relative file path (e.g., "programs/project/src/lib.rs")
 - content: complete file contents
 
+You operate in one of two modes:
+
+MODE A — FILE MODE
+- You generate complete new files (accounts.rs, errors.rs, instructions/*.rs).
+- You MUST NOT output lib.rs.
+
+MODE B — PROGRAM INJECTION MODE
+- You ONLY output Rust code to be inserted inside the existing #[program] module.
+- You NEVER output a full file.
+- You NEVER include declare_id! or module declarations.
+
+Current mode: {generation_mode}
+
+---
+
+ABSOLUTE CONSTRAINTS (VIOLATION = BROKEN OUTPUT):
+
+1. You are FORBIDDEN from:
+   - redefining declare_id!
+   - creating a new declare_id!
+   - modifying programs/*/src/lib.rs outside of adding handler functions inside the existing #[program] module.
+
+2. You must treat programs/*/src/lib.rs as READ-ONLY except for:
+   - inserting instruction handler functions inside the existing #[program] module body.
+
+3. If a requested file is lib.rs:
+   - DO NOT write the full file.
+   - ONLY output the minimal code block that must be inserted into the existing #[program] module.
+   - NEVER include declare_id!, use statements outside #[program], or module declarations.
+
+4. If you are not explicitly asked to generate lib.rs in the batch:
+   - DO NOT output lib.rs at all.
+
+---
+
+COMPILATION TARGET (NON-NEGOTIABLE):
+
+- Rust edition: 2021 ONLY
+- Stable toolchain ONLY (no nightly features)
+- Anchor: 0.30.x
+- Solana toolchain compatible with Anchor 0.30.x
+- Cargo must be compatible with stable Rust 1.75–1.84
+
+You are FORBIDDEN from:
+- using Rust 2024 edition features
+- enabling `edition2024`
+- referencing nightly-only features
+- adding crates that require unstable Cargo features
+
+---
+
+DEPENDENCY RULES:
+
+- Prefer Anchor + standard library only.
+- Do NOT introduce new crates unless strictly necessary.
+- Do NOT use experimental cryptography, time, async, or macro crates.
+- If a feature can be implemented with plain Rust or Anchor, do not add a crate.
+
 KEY: Use anchor_spl ONLY if the contract needs token operations (mint, transfer, burn).
 For non-token programs (counter, escrow without tokens, etc.), use plain Anchor without anchor_spl.
 
+---
+
+COMPILATION SAFETY CHECKLIST (MUST SATISFY ALL):
+
+- Code compiles on stable Rust 2021
+- No nightly features
+- No edition2024
+- No undeclared crates
+- No placeholder imports
+- No unused Anchor features
+- All accounts have correct space calculations
+- All instructions enforce signer + ownership checks
+
+If any design would require unstable Cargo features, you must redesign it.
+
+---
+
+INVALID OUTPUT EXAMPLES (NEVER DO THIS):
+
+- Writing `declare_id!("...")`
+- Recreating lib.rs boilerplate
+- Adding `pub mod accounts;`
+- Adding `pub mod instructions;`
+- Emitting a full new lib.rs file (unless in explicit PATCH_MODE)
+
+---
+
 Requirements:
 1. Follow Anchor 0.30.x idioms and best practices
-2. Use modern Rust (2021 edition)
-3. Implement proper error handling
-4. Include all necessary imports and use statements
-5. Add inline documentation for complex logic
-6. Use proper error types with human-readable messages
+2. Implement proper error handling
+3. Include all necessary imports and use statements
+4. Add inline documentation for complex logic
+5. Use proper error types with human-readable messages
 
 For each instruction handler:
 - Create context struct with required accounts (#[derive(Accounts)])
@@ -35,7 +118,6 @@ For custom data structures (accounts):
 - Include space calculation
 
 File structure:
-- programs/{project}/src/lib.rs - Main module with #[program], ALREADY HAS correct declare_id! from anchor init
 - programs/{project}/src/instructions/*.rs - Each instruction handler in separate files
 - programs/{project}/src/accounts.rs - Account struct definitions (import with: use crate::accounts::StructName;)
 - programs/{project}/src/errors.rs - Custom error types
@@ -84,15 +166,14 @@ class CodeGenerator(LLMOnlyAgent):
 
         files_summary = "\n".join(f"- {path}" for path in existing_files)
 
-        # If in batch mode, only generate files for current batch
+        # Determine generation mode
         batch_files = current_batch.get("file_paths", []) if current_batch else []
+        generation_mode = "FILE_MODE" if batch_files else "INJECTION_MODE"
+
         batch_description = current_batch.get("description", "") if current_batch else ""
 
         batch_instructions = ""
         if batch_files:
-            # Filter to only relevant instructions based on batch files
-            batch_file_names = [f.split("/")[-1].replace(".rs", "") for f in batch_files]
-            instructions = spec.get("instructions", [])
             batch_instructions = f"""
 
 CURRENT BATCH: {batch_description}
@@ -101,7 +182,9 @@ Files to generate in this batch:
 
 Only generate code for the files listed above. Do NOT generate other files - they will be generated in subsequent batches."""
 
-        return f"""Generate Rust instruction implementations for:
+        return f"""GENERATION MODE: {generation_mode}
+
+Generate Rust instruction implementations for:
 
 Project folder name (crate name): {project_name}
 Description: {spec.get("description", "N/A")}

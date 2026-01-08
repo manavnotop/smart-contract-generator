@@ -6,7 +6,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 # Constants
-MAX_RETRIES = 0
+MAX_RETRIES = 1
 
 
 class ContractFeature(str, Enum):
@@ -87,6 +87,9 @@ class GraphState(BaseModel):
     pending_files: dict[str, str] = Field(default_factory=dict)
     generated_files: dict[str, str] = Field(default_factory=dict)
     file_progress: tuple[int, int] = Field(default=(0, 0))
+
+    # Generation mode for code_generator (FILE_MODE or INJECTION_MODE)
+    generation_mode: str | None = Field(default=None, description="FILE_MODE or INJECTION_MODE")
 
     def to_dict(self) -> dict:
         return self.model_dump()

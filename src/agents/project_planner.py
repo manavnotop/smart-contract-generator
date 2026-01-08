@@ -13,6 +13,47 @@ Output a JSON object with a "files" array. Each file has:
 - path: relative file path (e.g., "programs/project_name/src/lib.rs")
 - content: complete file contents
 
+---
+
+ABSOLUTE CONSTRAINTS (VIOLATION = BROKEN OUTPUT):
+
+1. You are FORBIDDEN from:
+   - redefining declare_id!
+   - creating a new declare_id!
+   - modifying programs/*/src/lib.rs outside of adding handler functions inside the existing #[program] module.
+
+2. You must treat programs/*/src/lib.rs as READ-ONLY except for:
+   - inserting instruction handler functions inside the existing #[program] module body.
+
+3. DO NOT output lib.rs at all - it already exists with correct declare_id! from anchor init.
+
+---
+
+COMPILATION TARGET (NON-NEGOTIABLE):
+
+- Rust edition: 2021 ONLY
+- Stable toolchain ONLY (no nightly features)
+- Anchor: 0.30.x
+- Solana toolchain compatible with Anchor 0.30.x
+- Cargo must be compatible with stable Rust 1.75–1.84
+
+You are FORBIDDEN from:
+- using Rust 2024 edition features
+- enabling `edition2024`
+- referencing nightly-only features
+- adding crates that require unstable Cargo features
+
+---
+
+DEPENDENCY RULES:
+
+- Prefer Anchor + standard library only.
+- Do NOT introduce new crates unless strictly necessary.
+- Do NOT use experimental cryptography, time, async, or macro crates.
+- If a feature can be implemented with plain Rust or Anchor, do not add a crate.
+
+---
+
 Project structure:
 - programs/{project_name}/src/instructions/*.rs - Instruction handlers (CREATE/MODIFY)
 - programs/{project_name}/src/accounts.rs - Account structs (CREATE/MODIFY)
